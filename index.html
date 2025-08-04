@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>EthOs Fight Code</title>
+<style>
+    body { margin: 0; background: #000; overflow: hidden; }
+    canvas { display: block; background: #222; }
+    #joystick {
+        position: fixed; bottom: 50px; left: 50px;
+        width: 120px; height: 120px;
+        background: rgba(255,255,255,0.1);
+        border-radius: 50%;
+        touch-action: none;
+    }
+    #stick {
+        position: absolute; top: 40px; left: 40px;
+        width: 40px; height: 40px;
+        background: rgba(0,255,255,0.5);
+        border-radius: 50%;
+    }
+    #hud {
+        position: fixed; top: 10px; left: 10px;
+        color: white; font-family: Arial; font-size: 18px;
+    }
+    #popup {
+        position: fixed; top: 50%; left: 50%;
+        transform: translate(-50%, -50%);
+        background: #333; color: white; padding: 20px;
+        border-radius: 10px; display: none; text-align: center;
+    }
+    #popup button {
+        margin-top: 10px; padding: 8px 12px;
+        background: orange; border: none; border-radius: 5px;
+        cursor: pointer;
+    }
+</style>
+</head>
+<body>
+
+<!-- 🎵 Musik Latar -->
+<audio id="bgm" autoplay loop>
+    <source src="bg-music.mp3" type="audio/mpeg">
+</audio>
+
+<canvas id="gameCanvas"></canvas>
+<div id="joystick"><div id="stick"></div></div>
+<div id="hud">HP: 100% | LVL: 1 | DMG: 10 | EXP: 0/50</div>
+<div id="popup">
+    <div id="popupText"></div>
+    <button id="copyBtn">Salin Code</button>
+</div>
+
+<script>
+// 🎯 Pastikan musik bisa main di HP
+document.addEventListener('click', () => {
+    let bgm = document.getElementById("bgm");
+    if (bgm && bgm.paused) {
+        bgm.play().catch(err => console.log(err));
+    }
+});
+</script>
+
+<script>
+// ====== VARIABEL GAME ======
+// (kode JS game seperti yang sudah dibuat sebelumnya)
+</script>
+
+</body>
+</html>
