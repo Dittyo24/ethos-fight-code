@@ -38,9 +38,8 @@
 </head>
 <body>
 
-<!-- 🎵 Musik Latar -->
 <audio id="bgm" autoplay loop>
-    <source src="bg-music.mp3" type="audio/mpeg">
+    <source src="https://cdn.pixabay.com/download/audio/2023/01/19/audio_31b3d3b3ba.mp3?filename=8-bit-arcade-116199.mp3" type="audio/mpeg">
 </audio>
 
 <canvas id="gameCanvas"></canvas>
@@ -52,18 +51,243 @@
 </div>
 
 <script>
-// 🎯 Pastikan musik bisa main di HP
 document.addEventListener('click', () => {
     let bgm = document.getElementById("bgm");
     if (bgm && bgm.paused) {
         bgm.play().catch(err => console.log(err));
     }
 });
-</script>
 
-<script>
-// ====== VARIABEL GAME ======
-// (kode JS game seperti yang sudah dibuat sebelumnya)
+const canvas = document.getElementById("gameCanvas");
+const ctx = canvas.getContext("2d");
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+
+const mapWidth = 3000, mapHeight = 3000;
+let player = { x: mapWidth/2, y: mapHeight/2, size: 40, speed: 3, hp: 100, maxHp: 100, dmg: 10, level: 1, exp: 0, expToNext: 50 };
+let enemies = [];
+let bullets = [];
+let explosions = [];
+let chests = [];
+let bossActive = false;
+
+let joystick = document.getElementById("joystick");
+let stick = document.getElementById("stick");
+let joyX = 0, joyY = 0;
+joystick.addEventListener("touchend", () => { joyX=0; joyY=0; stick.style.left="40px"; stick.style.top="40px"; });
+joystick.addEventListener("touchmove", e => {
+    let rect = joystick.getBoundingClientRect();
+    let touch = e.touches[0];
+    let dx = touch.clientX - (rect.left + rect.width/2);
+    let dy = touch.clientY - (rect.top + rect.height/2);
+    let dist = Math.min(Math.sqrt(dx*dx+dy*dy), 40);
+    let angle = Math.atan2(dy, dx);
+    joyX = Math.cos(angle) * (dist/40);
+    joyY = Math.sin(angle) * (dist/40);
+    stick.style.left = (40 + Math.cos(angle)*dist) + "px";
+    stick.style.top = (40 + Math.sin(angle)*dist) + "px";
+    e.preventDefault();
+});
+
+function spawnEnemy() {
+    if (bossActive) return;
+    let side = Math.floor(Math.random()*4);
+    let pos = {x:0,y:0};
+    if(side === 0){ pos.x = Math.random()*mapWidth; pos.y = 0; }
+    if(side === 1){ pos.x = Math.random()*mapWidth; pos.y = mapHeight; }
+    if(side === 2){ pos.x = 0; pos.y = Math.random()*mapHeight; }
+    if(side === 3){ pos.x = mapWidth; pos.y = Math.random()*mapHeight; }
+    enemies.push({x:pos.x, y:pos.y, size:30, speed:1, hp:100, maxHp:100, type:"creep", dmg:10});
+}
+setInterval(spawnEnemy, 1000);
+
+function spawnBoss() {
+    let pos = {x: Math.random()*mapWidth, y: Math.random()*mapHeight};
+    enemies.push({x:pos.x, y:pos.y, size:80, speed:0.8, hp:1000, maxHp:1000, type:"boss", dmg:20});
+    bossActive = true;
+}
+
+function spawnRandomChest() {
+    let pos = {x: Math.random()*mapWidth, y: Math.random()*mapHeight};
+    let type = Math.random() < 0.5 ? "code" : "heal";
+    chests.push({x: pos.x, y: pos.y, size: 30, type: type, code: type === "code" ? genCode() : null});
+}
+setInterval(spawnRandomChest, 20000);
+
+function genCode() {
+    let chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+    let code = "";
+    for (let i=0;i<8;i++) code += chars[Math.floor(Math.random()*chars.length)];
+    return code;
+}
+
+function shoot() {
+    if(enemies.length > 0) {
+        let target = enemies.reduce((closest, en) => {
+            let d1 = Math.hypot(en.x - player.x, en.y - player.y);
+            let d2 = closest ? Math.hypot(closest.x - player.x, closest.y - player.y) : Infinity;
+            return d1 < d2 ? en : closest;
+        }, null);
+        if(target) {
+            let angle = Math.atan2(target.y - player.y, target.x - player.x);
+            bullets.push({x: player.x, y: player.y, size: 10, speed: 5, angle: angle});
+        }
+    }
+}
+setInterval(shoot, 1000);
+
+function addExp(amount) {
+    player.exp += amount;
+    if(player.exp >= player.expToNext) {
+        player.exp -= player.expToNext;
+        player.level++;
+        player.dmg += 3;
+        player.expToNext += 50;
+        if(player.level % 5 === 0) spawnBoss();
+    }
+}
+
+function update() {
+    player.x += joyX * player.speed;
+    player.y += joyY * player.speed;
+    player.x = Math.max(0, Math.min(mapWidth, player.x));
+    player.y = Math.max(0, Math.min(mapHeight, player.y));
+
+    bullets.forEach((b, i) => {
+        b.x += Math.cos(b.angle) * b.speed;
+        b.y += Math.sin(b.angle) * b.speed;
+        enemies.forEach((en, j) => {
+            let dist = Math.hypot(b.x - en.x, b.y - en.y);
+            if(dist < (b.size + en.size)/2) {
+                en.hp -= player.dmg;
+                bullets.splice(i, 1);
+                if(en.hp <= 0) {
+                    explosions.push({x: en.x, y: en.y, radius: 10, alpha: 1});
+                    if(en.type === "creep") addExp(10);
+                    if(en.type === "boss") {
+                        addExp(100);
+                        chests.push({x: en.x, y: en.y, size: 30, type:"code", code: genCode()});
+                        bossActive = false;
+                    }
+                    enemies.splice(j, 1);
+                }
+            }
+        });
+    });
+
+    enemies.forEach((en, i) => {
+        let dx = player.x - en.x;
+        let dy = player.y - en.y;
+        let dist = Math.sqrt(dx*dx + dy*dy);
+        en.x += (dx/dist) * en.speed;
+        en.y += (dy/dist) * en.speed;
+        if(dist < (player.size + en.size)/2) {
+            player.hp -= en.dmg;
+            explosions.push({x: en.x, y: en.y, radius: 10, alpha: 1});
+            enemies.splice(i, 1);
+            if(player.hp <= 0) {
+                alert("Game Over!");
+                document.location.reload();
+            }
+        }
+    });
+
+    explosions.forEach((ex, i) => {
+        ex.radius += 2;
+        ex.alpha -= 0.05;
+        if(ex.alpha <= 0) explosions.splice(i, 1);
+    });
+}
+
+function drawHPBar(x, y, width, height, percent) {
+    ctx.fillStyle = "red";
+    ctx.fillRect(x, y, width, height);
+    ctx.fillStyle = "lime";
+    ctx.fillRect(x, y, width * (percent / 100), height);
+    ctx.strokeStyle = "black";
+    ctx.strokeRect(x, y, width, height);
+}
+
+function draw() {
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    let camX = player.x - canvas.width/2;
+    let camY = player.y - canvas.height/2;
+
+    ctx.fillStyle = "#333";
+    ctx.fillRect(-camX, -camY, mapWidth, mapHeight);
+
+    ctx.fillStyle = "cyan";
+    ctx.beginPath();
+    ctx.arc(canvas.width/2, canvas.height/2, player.size/2, 0, Math.PI*2);
+    ctx.fill();
+    drawHPBar(canvas.width/2 - 25, canvas.height/2 - 40, 50, 5, player.hp);
+
+    ctx.shadowBlur = 20;
+    ctx.shadowColor = "yellow";
+    ctx.fillStyle = "yellow";
+    bullets.forEach(b => {
+        ctx.beginPath();
+        ctx.arc(b.x - camX, b.y - camY, b.size/2, 0, Math.PI*2);
+        ctx.fill();
+    });
+    ctx.shadowBlur = 0;
+
+    enemies.forEach(en => {
+        ctx.fillStyle = en.type === "boss" ? "purple" : "red";
+        ctx.beginPath();
+        ctx.arc(en.x - camX, en.y - camY, en.size/2, 0, Math.PI*2);
+        ctx.fill();
+        drawHPBar(en.x - camX - en.size/2, en.y - camY - en.size/1.2, en.size, 4, en.hp/en.maxHp*100);
+    });
+
+    chests.forEach(ch => {
+        ctx.fillStyle = "gold";
+        ctx.fillRect(ch.x - camX - ch.size/2, ch.y - camY - ch.size/2, ch.size, ch.size);
+    });
+
+    explosions.forEach(ex => {
+        ctx.globalAlpha = ex.alpha;
+        ctx.fillStyle = "orange";
+        ctx.beginPath();
+        ctx.arc(ex.x - camX, ex.y - camY, ex.radius, 0, Math.PI*2);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+    });
+
+    document.getElementById("hud").innerText = `HP: ${player.hp}% | LVL: ${player.level} | DMG: ${player.dmg} | EXP: ${player.exp}/${player.expToNext}`;
+}
+
+function gameLoop() {
+    update();
+    draw();
+    requestAnimationFrame(gameLoop);
+}
+gameLoop();
+
+canvas.addEventListener("click", e => {
+    let camX = player.x - canvas.width/2;
+    let camY = player.y - canvas.height/2;
+    let clickX = e.clientX + camX;
+    let clickY = e.clientY + camY;
+    chests.forEach((ch, i) => {
+        if(clickX > ch.x - ch.size/2 && clickX < ch.x + ch.size/2 &&
+           clickY > ch.y - ch.size/2 && clickY < ch.y + ch.size/2) {
+            if(ch.type === "code") showPopup(`Your Get Code: ${ch.code}`, ch.code);
+            if(ch.type === "heal") player.hp = Math.min(player.maxHp, player.hp + 30);
+            chests.splice(i, 1);
+        }
+    });
+});
+
+function showPopup(text, code) {
+    document.getElementById("popupText").innerText = text;
+    let popup = document.getElementById("popup");
+    popup.style.display = "block";
+    document.getElementById("copyBtn").onclick = () => {
+        navigator.clipboard.writeText(code);
+        popup.style.display = "none";
+    };
+}
 </script>
 
 </body>
